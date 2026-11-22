@@ -1,0 +1,78 @@
+---
+title: "Trabalho Jesus"
+author: "Daniel"
+date: "2023-11-26"
+output: html_document
+---
+
+```{r}
+library(em)
+library(palmerpenguins)
+library(tidyverse)
+```
+
+```{r}
+dataGentoo = penguins %>% drop_na() %>% 
+  filter(species == "Gentoo")
+ 
+dataGentoo %>% 
+  ggplot(aes(x = body_mass_g))+
+  geom_histogram()+
+  theme_classic()
+
+dataGentoo %>% 
+  ggplot(aes(x = body_mass_g, fill = sex))+
+  geom_histogram()+
+  theme_classic()
+
+set.seed(1)
+
+clusters = kmeans(dataGentoo$body_mass_g, centers = 2)
+dataGentoo$clusters = ifelse(clusters$cluster == 1, 1, 0) |> as.factor()
+
+dataGentoo %>% 
+  ggplot(aes(x = body_mass_g, fill = clusters))+
+  geom_histogram()+
+  theme_classic()
+
+```
+
+```{r}
+modelo = lm(data = dataGentoo, formula = body_mass_g ~ 1)
+summary(modelo)
+mean(dataGentoo$body_mass_g)
+dataGentoo %>% 
+  ggplot(aes(x = body_mass_g, fill = sex))+
+  geom_histogram()+
+  geom_vline(xintercept = modelo$coefficients) +
+  theme_classic()
+```
+```{r}
+set.seed(1)
+results <- em(modelo, latent = 2)
+emResults = summary(results)
+emResults$coefficients
+mean(dataGentoo$body_mass_g[dataGentoo$sex == "female"])
+mean(dataGentoo$body_mass_g[dataGentoo$sex == "male"])
+medias = emResults$coefficients[,1] |> unlist()
+
+dataGentoo$classes = results$post_pr[,1] |> round() |> unlist() |> as.factor()
+
+dataGentoo %>% 
+  ggplot(aes(x = body_mass_g, fill = classes))+
+  geom_histogram()+
+  theme_classic()
+
+dataGentoo %>% 
+  ggplot(aes(x = body_mass_g, fill = sex))+
+  geom_histogram()+
+  geom_vline(xintercept = medias[1], color = "red") +
+  geom_vline(xintercept = medias[2], color = "blue") +
+  theme_classic()
+```
+```{r}
+classes = results$post_pr[,1] |> round()
+
+table(dataGentoo$sex, classes)
+```
+

@@ -1,0 +1,105 @@
+---
+title: "Gibbs"
+author: "Daniel"
+date: "2023-11-30"
+output: html_document
+---
+
+```{r}
+library(gtools)
+library(tidyverse)
+```
+
+```{r}
+#Código baseado no trabalho de Stephens
+#https://stephens999.github.io/fiveMinuteStats/gibbs2.html
+
+normalize = function(x) { return(x / sum(x)) }
+
+sample_z = function(x, pi, mu) {
+  dmat = outer(mu, x, "-")
+  p_z_given_x = as.vector(pi) * dnorm(dmat, 0, 1)
+  p_z_given_x = apply(p_z_given_x, 2, normalize)
+
+  z = rep(0, length(x))
+  for (i in 1:length(z)) {
+    z[i] = sample(1:length(pi), size = 1, prob = p_z_given_x[, i], replace = TRUE)
+  }
+  return(z)
+}
+
+sample_pi = function(z, k) {
+  counts = colSums(outer(z, 1:k, FUN = "=="))
+  pi = rdirichlet(1, counts + 1)
+  return(pi)
+}
+
+sample_mu = function(x, z, k, prior) {
+  df = data.frame(x = x, z = z)
+  mu = rep(0, k)
+  for (i in 1:k) {
+    sample_size = sum(z == i)
+    sample_mean = ifelse(sample_size == 0, 0, mean(x[z == i]))
+
+    post_prec = sample_size + prior$prec
+    post_mean = (prior$mean * prior$prec + sample_mean * sample_size) / post_prec
+    mu[i] = rnorm(1, post_mean, sqrt(1 / post_prec))
+  }
+  return(mu)
+}
+
+gibbs = function(x, k, niter = 1000, mu_prior = list(mean = 0, prec = 0.1)) {
+  pi = rep(1/k, k)
+  mu = rnorm(k, 0, 10)
+  z = sample_z(x, pi, mu)
+  res = list(mu = matrix(nrow = niter, ncol = k), pi = matrix(nrow = niter, ncol = k), z = matrix(nrow = niter, ncol = length(x)))
+  res$mu[1, ] = mu
+  res$pi[1, ] = pi
+  res$z[1, ] = z
+  for (i in 2:niter) {
+    pi = sample_pi(z, k)
+    mu = sample_mu(x, z, k, mu_prior)
+    z = sample_z(x, pi, mu)
+    res$mu[i, ] = mu
+    res$pi[i, ] = pi
+    res$z[i, ] = z
+  }
+  return(res)
+}
+
+```
+
+```{r}
+set.seed(33)
+
+rmix = function(n,pi,mu,s){
+  z = sample(1:length(pi),prob=pi,size=n,replace=TRUE)
+  x = rnorm(n,mu[z],s[z])
+  return(x)
+}
+x = rmix(n=1000,pi=c(0.5,0.5),mu=c(-2,2),s=c(1,1))
+hist(x)
+
+res = gibbs(x, 2)
+```
+
+```{r}
+plot(res$mu[,1],ylim=c(-4,4),type="l")
+lines(res$mu[,2],col=2)
+
+acf(res$mu[,1])
+acf(res$mu[,2])
+
+valido1 = res$mu[,1][100:1000]
+
+valido2 = res$mu[,2][100:1000]
+
+media1 = valido1[seq(1,length(valido1), 4)] |> mean()
+media2 = valido2[seq(1,length(valido2), 4)] |> mean()
+
+cat("média mu1 =", media1, "\n")
+cat("média mu2 =", media2, "\n")
+
+#res$z
+```
+
